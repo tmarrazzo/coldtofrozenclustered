@@ -84,7 +84,7 @@ if __name__ == "__main__":
     bucket = sys.argv[1]
     bucketlog = {'bucket': bucket}
     logger = logging.getLogger(__name__)
-    logging.basicConfig(filename="/opt/splunk/var/log/splunk/coldtofrozen.log",
+    logging.basicConfig(filename="/opt/splunk/var/log/coldtofrozen.log",
                         filemode='a',
                         format='%(asctime)s,%(msecs)d %(levelname)s %(bucket)s  %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S',
