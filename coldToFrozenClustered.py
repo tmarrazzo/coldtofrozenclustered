@@ -6,7 +6,7 @@ import socket
 import pipes
 
 # Change the below settings as appropriate for your environment
-ARCHIVE_DIR = '/splunkfrozen'
+ARCHIVE_DIR = '/splunkdata'
 REMOTE_SERVER = '192.168.32.133'
 
 # For new style buckets (v4.2+), we can remove all files except for the rawdata.
