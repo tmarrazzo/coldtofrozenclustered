@@ -14,6 +14,12 @@ REMOTE_SERVER = '192.168.32.133'
 
 
 def strip_bucket(base, files):
+    """
+    Strip all searchable content from buckets, preserve "rawdata" subdir and contents
+    :param base: Base path to bucket
+    :param files: List of files at the root level of the bucket
+    :return:
+    """
     print 'Archiving bucket: ' + base
     for f in files:
         full = os.path.join(base, f)
@@ -25,7 +31,7 @@ def check_remote_path(host, dirpath):
     """
     Check if a path is valid on a remote host
     :param host: Remote server
-    :param path: Path to test
+    :param dirpath: Path to test
     :return:
     """
     try:
