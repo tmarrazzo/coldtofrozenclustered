@@ -1,13 +1,12 @@
 import sys
 import os
 import subprocess
-from datetime import datetime
-import socket
 import pipes
+import logging
 
 # Change the below settings as appropriate for your environment
 ARCHIVE_DIR = '/splunkdata'
-REMOTE_SERVER = '192.168.32.133'
+REMOTE_SERVER = '192.168.32.128'
 
 # For new style buckets (v4.2+), we can remove all files except for the rawdata.
 # We can later rebuild all metadata and tsidx files with "splunk rebuild"
@@ -20,7 +19,6 @@ def strip_bucket(base, files):
     :param files: List of files at the root level of the bucket
     :return:
     """
-    print 'Archiving bucket: ' + base
     for f in files:
         full = os.path.join(base, f)
         if os.path.isfile(full):
@@ -42,6 +40,7 @@ def check_remote_path(host, dirpath):
         if status == 1:
             return False
     except Exception as ex:
+        logging.error(ex)
         raise ex
 
 
@@ -55,6 +54,7 @@ def create_remote_dir(host, path):
     try:
         subprocess.call(['ssh', host, 'mkdir -p ', path])
     except Exception as ex:
+        logging.error(ex)
         raise ex
 
 
@@ -71,34 +71,50 @@ def copy_to_frozen(host, source, target):
     try:
         os.system(cmd)
     except Exception as ex:
+        logging.error(ex)
         raise ex
 
 
 if __name__ == "__main__":
     del os.environ['LD_LIBRARY_PATH']  # Clear this environmental variable so we don't use splunk's libraries
+
     if len(sys.argv) != 2:
         sys.exit('usage: python coldToFrozenClustered.py <bucket_dir_to_archive>')
 
     bucket = sys.argv[1]
+    bucketlog = {'bucket': bucket}
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(filename="/opt/splunk/var/log/splunk/coldtofrozen.log",
+                        filemode='a',
+                        format='%(asctime)s,%(msecs)d %(levelname)s %(bucket)s  %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S',
+                        level=logging.DEBUG)
+    logging = logging.LoggerAdapter(logger, bucketlog)
     if not os.path.isdir(bucket):
-        sys.exit('Given bucket is not a valid directory: ' + bucket)
-
+        logging.error("Bucket is not a valid directory, exiting")
+        sys.exit('Bucket is not a valid directory: ' + bucket)
+    logging.debug("Starting processing for bucket")
     rawdatadir = os.path.join(bucket, 'rawdata')
     if not os.path.isdir(rawdatadir):
+        logging.error("No rawdata directory, bucket invalid, exiting")
         sys.exit('No rawdata directory, given bucket is likely invalid: ' + bucket)
 
     frozenbucket = os.path.basename(bucket).replace("rb_", "db_")  # get bucket name and swap rb with db
     indexname = os.path.basename(os.path.dirname(os.path.dirname(bucket)))  # get index for building /ARCHIVE/<INDEX>/
-    hostname = socket.gethostname()  # get hostname for building /ARCHIVE/INDEX/<HOST>
-    destbucket = os.path.join(ARCHIVE_DIR, indexname, hostname, frozenbucket)
+    destbucket = os.path.join(ARCHIVE_DIR, indexname, frozenbucket)
 
     # Test to see if this bucket already exists on the remote server
     if check_remote_path(REMOTE_SERVER, destbucket):
+        logging.debug("Bucket already copied to frozen, skipping.")
         exit(0)  # Bucket already exists, ret 0 and let Splunk kill the bucket
     else:
-        create_remote_dir(REMOTE_SERVER, destbucket)  # Bucket does not exist, create /ARCHIVE/INDEX/HOST/BUCKET
+        create_remote_dir(REMOTE_SERVER, destbucket)  # Bucket does not exist, create /ARCHIVE/INDEX/BUCKET
+        logging.debug("Bucket has not yet been frozen. New remote_dir=" + destbucket)
 
     files = os.listdir(bucket)
     journal = os.path.join(rawdatadir, 'journal.gz')
     strip_bucket(bucket, files)  # Delete all files in bucket except rawdata dir contents
-    copy_to_frozen(REMOTE_SERVER, rawdatadir, destbucket)  # Copy 'rawdata' dir to /ARCHIVE/INDEX/HOST/BUCKET
+    logging.debug("Searchable content successfully stripped")
+    copy_to_frozen(REMOTE_SERVER, rawdatadir, destbucket)  # Copy 'rawdata' dir to /ARCHIVE/INDEX/BUCKET
+    logging.info("Bucket successfully copied to frozen server.")
+    sys.exit(0)
