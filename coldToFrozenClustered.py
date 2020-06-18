@@ -69,6 +69,7 @@ def copy_to_frozen(host, source, target):
 
 
 if __name__ == "__main__":
+    del os.environ['LD_LIBRARY_PATH']  # Clear this environmental variable so we don't use splunk's libraries
     if len(sys.argv) != 2:
         sys.exit('usage: python coldToFrozenClustered.py <bucket_dir_to_archive>')
 
